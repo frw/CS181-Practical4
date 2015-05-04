@@ -1,15 +1,16 @@
 from collections import Counter
 import numpy as np
 import numpy.random as npr
-import pylab as pl
+import matplotlib.pyplot as pl
 import cPickle as pickle
 import gzip
 import os
+
 # os.environ["SDL_VIDEODRIVER"] = "dummy"
 
 from SwingyMonkey import SwingyMonkey
 
-
+# Pick a random best choice 
 def draw_greedy(values):
     m = np.max(values)
     best = []
@@ -18,9 +19,11 @@ def draw_greedy(values):
             best.append(i)
     return npr.choice(best)
 
+''' 
 
+'''
 class BoltzmannExplorer(object):
-    def __init__(self, tau=10000., decay=0.9995):
+    def __init__(self, tau=100000., decay=0.99):
         self.tau = tau
         self.decay = decay
 
@@ -60,7 +63,7 @@ class BoltzmannExplorer(object):
 
 
 class EpsilonGreedyExplorer(object):
-    def __init__(self, epsilon=0.3, decay=0.99999):
+    def __init__(self, epsilon=0.3, decay=0.999):
         self.epsilon = epsilon
         self.decay = decay
 
@@ -75,8 +78,8 @@ class EpsilonGreedyExplorer(object):
 
 
 class BaseLearner(object):
-    def __init__(self, explorer=BoltzmannExplorer()):
-        self.filename = self.__class__.__name__ + '.pkl.gz'
+    def __init__(self, explorer=EpsilonGreedyExplorer(), name = ''):
+        self.filename = self.__class__.__name__ + name + '.pkl.gz'
         self.explorer = explorer
         self.epoch = 0
         self.last_state = None
@@ -120,27 +123,38 @@ class BaseLearner(object):
         # else:
         #     dist_from_center = round_multiple(dist_from_center, 13)
 
+
         dist_from_gap = monkey_loc - (tree_state['top'] + tree_state['bot']) / 2
+        '''
         if abs(dist_from_gap) <= 127:
             dist_from_gap = round_multiple(dist_from_gap, 5)
         elif dist_from_gap > 0:
             dist_from_gap = round_multiple(dist_from_gap - 132, 9) + 132
         else:
             dist_from_gap = round_multiple(dist_from_gap + 132, 9) - 132
+        '''
+        # print 'Initial Distance from Gap is %.2f' % dist_from_gap
+        sign = 0 if dist_from_gap == 0 else (dist_from_gap) / abs(dist_from_gap)
 
-        dist_from_tree = tree_state['dist']
+        dist_from_gap = sign * round(np.sqrt(abs(dist_from_gap/2)))
+
+        dist_from_tree = round_multiple(tree_state['dist'], 50)
 
         velocity = monkey_state['vel']
-        velocity = round_multiple(velocity, 3)
+        velocity = round_multiple(velocity, 10)
 
+        # print 'Final Distance from Gap is %.2f' % dist_from_gap
         return dist_from_gap, dist_from_tree, velocity
 
     def decide_action(self, new_state):
         return npr.rand() < 0.1
 
     def reward_callback(self, reward):
+
         if reward < 0:
             self.last_reward = -1000
+        elif reward == 0: 
+            self.last_reward = 0
         else:
             self.last_reward = 1
 
@@ -157,8 +171,8 @@ class BaseLearner(object):
 
 
 class ModelLearner(BaseLearner):
-    def __init__(self):
-        super(ModelLearner, self).__init__()
+    def __init__(self, name = ''):
+        super(ModelLearner, self).__init__(name = name)
         self.state_action_count = {}
         self.state_action_reward = {}
         self.state_transition_count = {}
@@ -184,9 +198,9 @@ class ModelLearner(BaseLearner):
 
 
 class QLearner(BaseLearner):
-    def __init__(self):
-        super(QLearner, self).__init__()
-        self.learning_rate = 0.3
+    def __init__(self, name = ''):
+        super(QLearner, self).__init__(name = name)
+        self.learning_rate = 0.1
         self.discount_rate = 0.95
         self.Q = {}
 
@@ -234,8 +248,8 @@ class SARSALearner(BaseLearner):
 
 
 class TDLearner(ModelLearner):
-    def __init__(self):
-        super(TDLearner, self).__init__()
+    def __init__(self, name = ''):
+        super(TDLearner, self).__init__(name = name)
         self.learning_rate = 0.3
         self.discount_rate = 0.95
         self.V = Counter()
@@ -264,11 +278,13 @@ class TDLearner(ModelLearner):
 
         return self.explorer.decide_action(values)
 
+print "Enter description and iterations " 
+description, iterations = raw_input().split()
 
-learner = TDLearner().load()
+learner = QLearner(name = description).load()
 
 saved = True
-for ii in xrange(1):
+for ii in xrange(int(iterations)):
     # Reset the state of the learner.
     learner.new_epoch()
 
@@ -289,7 +305,7 @@ for ii in xrange(1):
     learner.end_epoch()
     saved = False
 
-    if learner.epoch % 1000 == 0:
+    if learner.epoch % 500 == 0:
         learner.save()
         saved = True
 
@@ -301,7 +317,7 @@ moving_average = np.convolve(learner.scores, np.repeat(1.0, 100) / 100, 'valid')
 
 pl.plot(indices, learner.scores, '-')
 pl.plot(indices[99:], moving_average, 'r--')
-pl.title(learner.__class__.__name__ + " Scores")
+pl.title(learner.__class__.__name__ + " Scores with Boltzmann Explorer")
 pl.yscale('symlog', linthreshy=1)
 pl.ylabel("Score")
 pl.xlabel("Iteration")
