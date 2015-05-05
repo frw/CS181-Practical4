@@ -23,7 +23,7 @@ def draw_greedy(values):
 
 '''
 class BoltzmannExplorer(object):
-    def __init__(self, tau=100000., decay=0.99):
+    def __init__(self, tau=10000., decay=0.9995):
         self.tau = tau
         self.decay = decay
 
@@ -141,7 +141,7 @@ class BaseLearner(object):
         dist_from_tree = round_multiple(tree_state['dist'], 100)
 
         velocity = monkey_state['vel']
-        velocity = round_multiple(velocity, 10)
+        # velocity = round_multiple(velocity, 10)
 
         if velocity != 0: 
             velocity = velocity / abs(velocity)
@@ -153,11 +153,11 @@ class BaseLearner(object):
         return npr.rand() < 0.1
 
     def reward_callback(self, reward):
+
         if reward < 0:
             self.last_reward = -1000
         else:
             self.last_reward = 1
-
 
     def load(self):
         if os.path.isfile(self.filename):
@@ -201,7 +201,7 @@ class ModelLearner(BaseLearner):
 class QLearner(BaseLearner):
     def __init__(self, name = ''):
         super(QLearner, self).__init__(name = name)
-        self.learning_rate = 0.5
+        self.learning_rate = 0.1
         self.discount_rate = 0.95
         self.Q = {}
 
@@ -282,7 +282,7 @@ class TDLearner(ModelLearner):
 print "Enter description and iterations " 
 description, iterations = raw_input().split()
 
-learner = QLearner(name = description).load()
+learner = TDLearner(name = description).load()
 
 saved = True
 for ii in xrange(int(iterations)):
@@ -292,7 +292,7 @@ for ii in xrange(int(iterations)):
     # Make a new monkey object.
     swing = SwingyMonkey(sound=False,                      # Don't play sounds.
                          text="Epoch %d" % learner.epoch,  # Display the epoch on screen.
-                         tick_length=0,                    # Make game ticks super fast.
+                         tick_length=1,                    # Make game ticks super fast.
                          action_callback=learner.action_callback,
                          reward_callback=learner.reward_callback)
 
@@ -318,7 +318,7 @@ moving_average = np.convolve(learner.scores, np.repeat(1.0, 100) / 100, 'valid')
 
 pl.plot(indices, learner.scores, '-')
 pl.plot(indices[99:], moving_average, 'r--')
-pl.title(learner.__class__.__name__ + " Scores with Epsilon Greedy Explorer")
+pl.title(learner.__class__.__name__ + " Scores with Fewer States")
 pl.yscale('symlog', linthreshy=1)
 pl.ylabel("Score")
 pl.xlabel("Iteration")
